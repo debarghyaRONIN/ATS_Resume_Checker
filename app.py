@@ -75,7 +75,7 @@ if submit1:
         st.subheader("The Response is")
         st.write(response)
     else:
-        st.write("Please uplaod the resume")
+        st.write("Please upload the resume")
 
 elif submit2:
     if uploaded_file is not None:
