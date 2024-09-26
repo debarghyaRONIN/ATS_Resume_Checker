@@ -3,3 +3,5 @@ While using this as a proper deployed version, it requires deployment using dock
 Docker can be used for that.
 
 Else if you want to run it locally or work with it locally then get it from here https://poppler.freedesktop.org/
+
+Get the required api key from https://aistudio.google.com/app/apikey
