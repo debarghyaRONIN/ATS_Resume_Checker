@@ -14,27 +14,27 @@ load_dotenv()
 
 # Get API key from secrets (Streamlit Cloud) or environment variable (local)
 try:
-    api_key = st.secrets["GROK_API_KEY"]
+    api_key = st.secrets["GROQ_API_KEY"]
 except (KeyError, FileNotFoundError):
-    api_key = os.getenv("GROK_API_KEY")
+    api_key = os.getenv("GROQ_API_KEY")
 
 if not api_key:
-    st.error("❌ API Key not found. Please configure GROK_API_KEY in Streamlit secrets.")
+    st.error("❌ API Key not found. Please configure GROQ_API_KEY in Streamlit secrets.")
     st.stop()
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Xai Grok API endpoint
-GROK_API_URL = "https://api.x.ai/openai/v1/chat/completions"
+# Groq API endpoint
+GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
 
 st.set_page_config(page_title="ATS Resume Expert")
-st.header("🚀 ATS Tracking System (Powered by Grok)")
+st.header("🚀 ATS Tracking System (Powered by Groq)")
 
 
-def get_grok_response(job_description, pdf_content, prompt):
-    """Generate response using Xai Grok API with error handling."""
+def get_groq_response(job_description, pdf_content, prompt):
+    """Generate response using Groq API with error handling."""
     try:
         # Decode base64 → bytes
         image_base64 = pdf_content[0]["data"]
@@ -54,7 +54,7 @@ def get_grok_response(job_description, pdf_content, prompt):
         }
 
         payload = {
-            "model": "grok-vision-beta",
+            "model": "llama-3.2-90b-vision-preview",
             "messages": [
                 {
                     "role": "user",
@@ -76,7 +76,7 @@ def get_grok_response(job_description, pdf_content, prompt):
             "max_tokens": 2000
         }
 
-        response = requests.post(GROK_API_URL, json=payload, headers=headers, timeout=60)
+        response = requests.post(GROQ_API_URL, json=payload, headers=headers, timeout=60)
         response.raise_for_status()
 
         result = response.json()
@@ -217,7 +217,7 @@ if submit1:
         with st.spinner("🔄 Analyzing resume..."):
             try:
                 pdf_content = input_pdf_setup(uploaded_file)
-                response = get_grok_response(final_job_description, pdf_content, input_prompt1)
+                response = get_groq_response(final_job_description, pdf_content, input_prompt1)
                 st.subheader("📋 Analysis")
                 st.write(response)
             except Exception as e:
@@ -234,7 +234,7 @@ elif submit2:
         with st.spinner("🔄 Calculating match percentage..."):
             try:
                 pdf_content = input_pdf_setup(uploaded_file)
-                response = get_grok_response(final_job_description, pdf_content, input_prompt2)
+                response = get_groq_response(final_job_description, pdf_content, input_prompt2)
                 st.subheader("📊 ATS Result")
                 st.write(response)
             except Exception as e:
