@@ -234,7 +234,7 @@ elif submit2:
         with st.spinner("🔄 Calculating match percentage..."):
             try:
                 pdf_content = input_pdf_setup(uploaded_file)
-                response = get_gemini_response(final_job_description, pdf_content, input_prompt2)
+                response = get_grok_response(final_job_description, pdf_content, input_prompt2)
                 st.subheader("📊 ATS Result")
                 st.write(response)
             except Exception as e:
