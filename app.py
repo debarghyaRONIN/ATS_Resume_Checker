@@ -33,18 +33,22 @@ st.set_page_config(page_title="ATS Resume Expert")
 st.header("🚀 ATS Tracking System (Powered by Groq)")
 
 
-def get_groq_response(job_description, pdf_content, prompt):
+def get_groq_response(job_description, pdf_content, prompt, resume_text=""):
     """Generate response using Groq API with error handling."""
     try:
-        # Decode base64 → bytes
-        image_base64 = pdf_content[0]["data"]
-
-        # Prepare the message with image and text
+        # Prepare the message combining job description, resume text, and prompt
         user_message = f"""
+JOB DESCRIPTION:
 {job_description}
 
-[Resume Image Provided]
+---
 
+RESUME CONTENT:
+{resume_text if resume_text else "[Resume image provided]"}
+
+---
+
+ANALYSIS REQUEST:
 {prompt}
 """
 
@@ -53,23 +57,13 @@ def get_groq_response(job_description, pdf_content, prompt):
             "Content-Type": "application/json",
         }
 
+        # Groq API expects content as a string, not array
         payload = {
             "model": "llama-3.3-70b-versatile",
             "messages": [
                 {
                     "role": "user",
-                    "content": [
-                        {
-                            "type": "text",
-                            "text": user_message
-                        },
-                        {
-                            "type": "image_url",
-                            "image_url": {
-                                "url": f"data:image/jpeg;base64,{image_base64}"
-                            }
-                        }
-                    ]
+                    "content": user_message
                 }
             ],
             "temperature": 0.7,
@@ -216,8 +210,9 @@ if submit1:
     elif uploaded_file is not None:
         with st.spinner("🔄 Analyzing resume..."):
             try:
-                pdf_content = input_pdf_setup(uploaded_file)
-                response = get_groq_response(final_job_description, pdf_content, input_prompt1)
+                # Extract resume text
+                resume_text = extract_text_from_pdf(uploaded_file)
+                response = get_groq_response(final_job_description, None, input_prompt1, resume_text)
                 st.subheader("📋 Analysis")
                 st.write(response)
             except Exception as e:
@@ -233,8 +228,9 @@ elif submit2:
     elif uploaded_file is not None:
         with st.spinner("🔄 Calculating match percentage..."):
             try:
-                pdf_content = input_pdf_setup(uploaded_file)
-                response = get_groq_response(final_job_description, pdf_content, input_prompt2)
+                # Extract resume text
+                resume_text = extract_text_from_pdf(uploaded_file)
+                response = get_groq_response(final_job_description, None, input_prompt2, resume_text)
                 st.subheader("📊 ATS Result")
                 st.write(response)
             except Exception as e:
