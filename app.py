@@ -33,25 +33,28 @@ st.set_page_config(page_title="ATS Resume Expert")
 st.header("ATS Tracking System")
 
 
-def get_gemini_response(input_text, pdf_content, prompt):
+def get_gemini_response(job_description, pdf_content, prompt):
     """Generate response using Gemini API with error handling."""
     try:
         # Decode base64 → bytes
         image_bytes = base64.b64decode(pdf_content[0]["data"])
+
+        # Create parts list
+        parts = [
+            types.Part(text=job_description),
+            types.Part.from_bytes(
+                data=image_bytes,
+                mime_type="image/jpeg"
+            ),
+            types.Part(text=prompt),
+        ]
 
         response = client.models.generate_content(
             model="gemini-2.0-flash",
             contents=[
                 types.Content(
                     role="user",
-                    parts=[
-                        types.Part.from_text(input_text),
-                        types.Part.from_bytes(
-                            data=image_bytes,
-                            mime_type="image/jpeg"
-                        ),
-                        types.Part.from_text(prompt),
-                    ],
+                    parts=parts,
                 )
             ],
         )
@@ -60,7 +63,7 @@ def get_gemini_response(input_text, pdf_content, prompt):
     
     except Exception as e:
         logger.error(f"Error generating response: {str(e)}")
-        return f" Error processing request: {str(e)}"
+        return f"❌ Error processing request: {str(e)}"
 
 
 @st.cache_data(show_spinner=False)
@@ -87,16 +90,62 @@ def input_pdf_setup(uploaded_file):
     
     except Exception as e:
         logger.error(f"Error processing PDF: {str(e)}")
-        raise Exception(f" Error processing PDF: {str(e)}")
+        raise Exception(f"❌ Error processing PDF: {str(e)}")
+
+
+def extract_text_from_pdf(uploaded_file):
+    """Extract text from PDF file."""
+    try:
+        if uploaded_file is None:
+            return ""
+        
+        pdf_document = fitz.open(stream=uploaded_file.read(), filetype="pdf")
+        text = ""
+        
+        # Extract text from first 3 pages max
+        for page_num in range(min(3, pdf_document.page_count)):
+            page = pdf_document.load_page(page_num)
+            text += page.get_text()
+        
+        pdf_document.close()
+        return text.strip()
+    
+    except Exception as e:
+        logger.error(f"Error extracting text from PDF: {str(e)}")
+        return ""
 
 
 
 
-input_text = st.text_area("📋 Job Description:", key="input", help="Paste the job description here")
-uploaded_file = st.file_uploader("📄 Upload your resume (PDF)...", type=["pdf"])
+st.divider()
+st.subheader("📋 Job Description")
+col_jd1, col_jd2 = st.columns([2, 1])
+with col_jd1:
+    input_text = st.text_area("Paste Job Description:", key="input", help="Paste the job description or upload a PDF below")
+with col_jd2:
+    job_pdf = st.file_uploader("Or Upload Job Description PDF...", type=["pdf"], key="job_pdf")
+
+# Extract text from job description PDF if provided
+job_description_from_pdf = ""
+if job_pdf is not None:
+    job_description_from_pdf = extract_text_from_pdf(job_pdf)
+    if job_description_from_pdf:
+        st.success("✅ Job Description PDF loaded")
+
+# Combine job descriptions
+final_job_description = input_text.strip()
+if job_description_from_pdf and not final_job_description:
+    final_job_description = job_description_from_pdf
+elif job_description_from_pdf and final_job_description:
+    final_job_description = final_job_description + "\n\n--- Additional from PDF ---\n\n" + job_description_from_pdf
+
+st.divider()
+st.subheader("📄 Resume")
+
+uploaded_file = st.file_uploader("📄 Upload your resume (PDF)...", type=["pdf"], key="resume")
 
 if uploaded_file is not None:
-    st.success("✅ PDF Uploaded Successfully")
+    st.success("✅ Resume PDF Uploaded Successfully")
 else:
     st.info("⏳ Please upload a PDF resume to get started")
 
@@ -133,30 +182,30 @@ Evaluate the resume against the job description and provide:
 
 if submit1:
     # Validate inputs
-    if not input_text.strip():
-        st.warning("⚠️ Please enter a job description")
+    if not final_job_description.strip():
+        st.warning("⚠️ Please enter or upload a job description")
     elif uploaded_file is not None:
         with st.spinner("🔄 Analyzing resume..."):
             try:
                 pdf_content = input_pdf_setup(uploaded_file)
-                response = get_gemini_response(input_text, pdf_content, input_prompt1)
+                response = get_gemini_response(final_job_description, pdf_content, input_prompt1)
                 st.subheader("📋 Analysis")
                 st.write(response)
             except Exception as e:
-                st.error(f" Error: {str(e)}")
+                st.error(f"❌ Error: {str(e)}")
                 logger.error(f"Error in submit1: {str(e)}")
     else:
         st.warning("⚠️ Please upload a resume (PDF)")
 
 elif submit2:
     # Validate inputs
-    if not input_text.strip():
-        st.warning("⚠️ Please enter a job description")
+    if not final_job_description.strip():
+        st.warning("⚠️ Please enter or upload a job description")
     elif uploaded_file is not None:
         with st.spinner("🔄 Calculating match percentage..."):
             try:
                 pdf_content = input_pdf_setup(uploaded_file)
-                response = get_gemini_response(input_text, pdf_content, input_prompt2)
+                response = get_gemini_response(final_job_description, pdf_content, input_prompt2)
                 st.subheader("📊 ATS Result")
                 st.write(response)
             except Exception as e:
