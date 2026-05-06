@@ -4,9 +4,8 @@ import streamlit as st
 import os
 import fitz  # PyMuPDF
 import logging
-
-from google import genai
-from google.genai import types 
+import requests
+import json
 
 
 # Load environment variables (for local development)
@@ -15,52 +14,82 @@ load_dotenv()
 
 # Get API key from secrets (Streamlit Cloud) or environment variable (local)
 try:
-    api_key = st.secrets["GOOGLE_API_KEY"]
+    api_key = st.secrets["GROK_API_KEY"]
 except (KeyError, FileNotFoundError):
-    api_key = os.getenv("GOOGLE_API_KEY")
+    api_key = os.getenv("GROK_API_KEY")
 
 if not api_key:
-    st.error("API Key not found. Please configure GOOGLE_API_KEY in Streamlit secrets.")
+    st.error("❌ API Key not found. Please configure GROK_API_KEY in Streamlit secrets.")
     st.stop()
-
-client = genai.Client(api_key=api_key)
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Xai Grok API endpoint
+GROK_API_URL = "https://api.x.ai/openai/v1/chat/completions"
+
 st.set_page_config(page_title="ATS Resume Expert")
-st.header("ATS Tracking System")
+st.header("🚀 ATS Tracking System (Powered by Grok)")
 
 
-def get_gemini_response(job_description, pdf_content, prompt):
-    """Generate response using Gemini API with error handling."""
+def get_grok_response(job_description, pdf_content, prompt):
+    """Generate response using Xai Grok API with error handling."""
     try:
         # Decode base64 → bytes
-        image_bytes = base64.b64decode(pdf_content[0]["data"])
+        image_base64 = pdf_content[0]["data"]
 
-        # Create parts list
-        parts = [
-            types.Part(text=job_description),
-            types.Part.from_bytes(
-                data=image_bytes,
-                mime_type="image/jpeg"
-            ),
-            types.Part(text=prompt),
-        ]
+        # Prepare the message with image and text
+        user_message = f"""
+{job_description}
 
-        response = client.models.generate_content(
-            model="gemini-2.0-flash",
-            contents=[
-                types.Content(
-                    role="user",
-                    parts=parts,
-                )
+[Resume Image Provided]
+
+{prompt}
+"""
+
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        }
+
+        payload = {
+            "model": "grok-vision-beta",
+            "messages": [
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": user_message
+                        },
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": f"data:image/jpeg;base64,{image_base64}"
+                            }
+                        }
+                    ]
+                }
             ],
-        )
+            "temperature": 0.7,
+            "max_tokens": 2000
+        }
 
-        return response.text
-    
+        response = requests.post(GROK_API_URL, json=payload, headers=headers, timeout=60)
+        response.raise_for_status()
+
+        result = response.json()
+        return result["choices"][0]["message"]["content"]
+
+    except requests.exceptions.Timeout:
+        error_msg = "❌ Request timeout. Please try again."
+        logger.error(error_msg)
+        return error_msg
+    except requests.exceptions.HTTPError as e:
+        error_msg = f"❌ API Error: {e.response.status_code} - {e.response.text}"
+        logger.error(error_msg)
+        return error_msg
     except Exception as e:
         logger.error(f"Error generating response: {str(e)}")
         return f"❌ Error processing request: {str(e)}"
@@ -188,7 +217,7 @@ if submit1:
         with st.spinner("🔄 Analyzing resume..."):
             try:
                 pdf_content = input_pdf_setup(uploaded_file)
-                response = get_gemini_response(final_job_description, pdf_content, input_prompt1)
+                response = get_grok_response(final_job_description, pdf_content, input_prompt1)
                 st.subheader("📋 Analysis")
                 st.write(response)
             except Exception as e:
