@@ -54,7 +54,7 @@ def get_groq_response(job_description, pdf_content, prompt):
         }
 
         payload = {
-            "model": "llama-3.2-90b-vision-preview",
+            "model": "llama-3.3-70b-versatile",
             "messages": [
                 {
                     "role": "user",
