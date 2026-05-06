@@ -2,10 +2,11 @@ from dotenv import load_dotenv
 import base64
 import streamlit as st
 import os
-import io
 import fitz  # PyMuPDF
 
-from google import genai 
+from google import genai
+from google.genai import types  # ✅ REQUIRED for multimodal
+
 
 load_dotenv()
 client = genai.Client(api_key=os.getenv("GOOGLE_API_KEY"))
@@ -16,17 +17,26 @@ st.header("ATS Tracking System")
 
 
 def get_gemini_response(input_text, pdf_content, prompt):
+    # Decode base64 → bytes
+    image_bytes = base64.b64decode(pdf_content[0]["data"])
+
     response = client.models.generate_content(
         model="gemini-2.0-flash",
         contents=[
-            input_text,
-            {
-                "mime_type": "image/jpeg",
-                "data": pdf_content[0]["data"]
-            },
-            prompt
-        ]
+            types.Content(
+                role="user",
+                parts=[
+                    types.Part.from_text(input_text),
+                    types.Part.from_bytes(
+                        data=image_bytes,
+                        mime_type="image/jpeg"
+                    ),
+                    types.Part.from_text(prompt),
+                ],
+            )
+        ],
     )
+
     return response.text
 
 
@@ -34,7 +44,7 @@ def input_pdf_setup(uploaded_file):
     if uploaded_file is not None:
         pdf_document = fitz.open(stream=uploaded_file.read(), filetype="pdf")
 
-        # Take first page only (same as your logic)
+        # First page → image
         first_page = pdf_document.load_page(0)
         pix = first_page.get_pixmap()
 
@@ -60,6 +70,7 @@ if uploaded_file is not None:
 
 submit1 = st.button("Tell Me About the Resume")
 submit2 = st.button("Percentage Match")
+
 
 
 input_prompt1 = """
@@ -88,7 +99,9 @@ Evaluate the resume against the job description and provide:
 if submit1:
     if uploaded_file is not None:
         pdf_content = input_pdf_setup(uploaded_file)
-        response = get_gemini_response(input_prompt1, pdf_content, input_text)
+
+       
+        response = get_gemini_response(input_text, pdf_content, input_prompt1)
 
         st.subheader("Analysis")
         st.write(response)
@@ -98,7 +111,9 @@ if submit1:
 elif submit2:
     if uploaded_file is not None:
         pdf_content = input_pdf_setup(uploaded_file)
-        response = get_gemini_response(input_prompt2, pdf_content, input_text)
+
+       
+        response = get_gemini_response(input_text, pdf_content, input_prompt2)
 
         st.subheader("ATS Result")
         st.write(response)
